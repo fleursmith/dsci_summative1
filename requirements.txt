@@ -1,0 +1,11 @@
+numpy==2.3.3
+pandas
+ipykernel
+matplotlib
+scikit-learn >=1.7.2
+seaborn
+requests
+scipy
+jinja2
+shiny
+statsmodels
