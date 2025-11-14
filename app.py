@@ -36,6 +36,9 @@ attendance.rename(columns={
 # Convert the 'Date' column from object dtype to datetime format
 attendance['Date'] = pd.to_datetime(attendance['Date'])
 
+# Build choices for the dropdown: unique module names
+module_choices = sorted(attendance["Module Name"].unique())
+
 # Build dataframe for graphs
 algorithms_attendance = attendance[attendance["Module Name"] == "Algorithms"] 
 algorithms_daily_attendance = algorithms_attendance.groupby('Date')['Attended'].mean().reset_index()
@@ -43,51 +46,71 @@ algorithms_daily_attendance["Attendance_Percent"] = algorithms_daily_attendance[
 
 # UI
 app_ui = ui.page_sidebar(
-    ui.sidebar(),  # empty sidebar – nothing interactive yet
-    ui.h1("Algorithms Attendance"),
+    ui.sidebar(
+        ui.input_select(
+            "module",
+            "Select module",
+            choices=module_choices,
+            selected="Algorithms",  # default selection
+        )
+    ),
+    ui.h1("Module Attendance"),
     ui.card(
         ui.card_header("Average Attendance Over Time"),
-        ui.output_plot("attendance_plot"),  # this will call the function below
+        ui.output_plot("attendance_plot"),
+        style="width: 100%; height: 1250px;"
     ),
 )
 
 # Server
 def server(input, output, session):
 
+    @reactive.Calc
+    def module_daily_attendance():
+        # Get selected module
+        module_name = input.module()
+
+        # Filter data
+        module_attendance = attendance[attendance["Module Name"] == module_name]
+
+        # Group and convert to percent
+        df = module_attendance.groupby("Date")["Attended"].mean().reset_index()
+        df["Attendance_Percent"] = df["Attended"] * 100
+        return df
+
     @output
     @render.plot
     def attendance_plot():
-         # code from earlier to plot graphs
-        # Plot the average attendance over time for the Algorithms module
-        plt.figure(figsize=(14,6))  # make figure wider for side by side view
+        # get reactive df
+        df = module_daily_attendance()
+
+        plt.figure(figsize=(10, 12))
 
         # Line graph
-        plt.subplot(1, 2, 1)  # first subplot (1 row, 2 columns, position 1)
+        plt.subplot(2, 1, 1)
         plt.plot(
-            algorithms_daily_attendance["Date"],
-            algorithms_daily_attendance["Attendance_Percent"],
+            df["Date"],
+            df["Attendance_Percent"],
             marker="o"
         )
-        plt.title("Average Attendance Over Time (Algorithms Module)")
+        plt.title(f"Average Attendance Over Time\n{input.module()} Module")
         plt.xlabel("Date")
-        plt.ylabel("Average Attendance Rate (% of those invited)")
-        plt.xticks(rotation=45)  # rotate x-axis labels for better readability
-        plt.grid(True)  # gridlines for readability
+        plt.ylabel("Attendance Rate (% of those invited)")
+        plt.xticks(rotation=45)
+        plt.grid(True)
 
         # Bar graph
-        ax2 = plt.subplot(1, 2, 2)  # second subplot (1 row, 2 columns, position 2)
-        plt.bar(
-            algorithms_daily_attendance["Date"],
-            algorithms_daily_attendance["Attendance_Percent"],
-        )
+        ax2 = plt.subplot(2, 1, 2)
+        plt.bar(df["Date"], df["Attendance_Percent"])
         plt.xlabel("Date")
-        plt.ylabel("Average Attendance Rate (% of those invited)")
-        plt.title("Average Attendance (Bar Graph)")
-        plt.xticks(rotation=45)  # rotate x-axis labels for better readability
-        plt.grid(True, axis="y")  # gridlines for readability
-
-        plt.tight_layout()  # prevent overlap
+        plt.ylabel("Attendance Rate (% of those invited)")
+        plt.title(f"Average Attendance\n{input.module()} Module")
+        plt.xticks(rotation=45)
+        plt.grid(True, axis="y")
+        # Give extra space at the bottom for x-axis labels
+        fig = plt.gcf()
+        fig.subplots_adjust(bottom=0.25, hspace=0.4)
         return ax2
-
+    
 # app
 app = App(app_ui, server)
